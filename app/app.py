@@ -57,7 +57,13 @@ remote_input = col2.radio(
 
 company_size_input = st.selectbox(
     'Company size',
-    company_size
+    company_size,
+    help="""
+very_small (0-30)  
+small (30-100)  
+medium (100-1000)  
+large (1000-10000+)  
+"""
 )
 
 
@@ -90,6 +96,9 @@ if st.button('Predict!'):
     predict_value = X.tail(1)
     X = X[:-1]
 
-    predict_ = model.predict(predict_value)[0]
+    predict = round(int(model.predict(predict_value)[0]), -2)
+    average = 1000
+    min_value = predict - average
+    max_value = predict + average
     st.header("Done...")
-    st.success(f"Predict value: {predict_}")
+    st.success(f"Salary: {min_value} - {max_value}")
