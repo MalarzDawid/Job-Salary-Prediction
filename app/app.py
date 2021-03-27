@@ -25,7 +25,7 @@ def create_salary_range(prediction):
 with open("models/linear_model", "rb") as file:
     model = pickle.load(file)
 
-df = pd.read_csv("../data/clear_output_data.csv")
+df = pd.read_csv("../data/model_df.csv")
 
 ####################
 # Page title
