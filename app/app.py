@@ -1,133 +1,121 @@
-####################
-# Imports libraries
-####################
+# ####################
+# # Imports libraries
+# ####################
+import os
 import pickle
 import pandas as pd
 import streamlit as st
-from sklearn import metrics
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import train_test_split
+import xgboost as XGB
+from sklearn.preprocessing import LabelEncoder
 
 ####################
 # Custom functions
 ####################
-def create_salary_range(prediction):
-        salary_range = 1000
-        prediction = round(int(prediction), -2)
-        min_salary = prediction - salary_range
-        max_salary = prediction + salary_range
-        return {"min": min_salary, "max": max_salary}
+def create_salary_range(prediction, salary_range):
+    prediction = round(int(prediction), -2)
+    min_salary = prediction - salary_range
+    max_salary = prediction + salary_range
+    return {"min": min_salary, "max": max_salary}
 
-####################
-# Load model and dataframe
-####################
-with open("models/linear_model", "rb") as file:
-    model = pickle.load(file)
 
-df = pd.read_csv("../data/model_df.csv")
+# Sidebar: selectbox
+model_select = st.sidebar.selectbox("Models", os.listdir("models/"))
+
+# Sidebar: slider
+salary_range = st.sidebar.slider("Select a range of salary", 0, 2000, (1000))
+
+# Sidebar: text
+st.sidebar.write("## About Project: ")
+st.sidebar.warning("My first idea about this project was create a website which predict salary"
+                + "based on simple information e.g.city, technology, contract type." + 
+                "This idea was successfully created. The next step is to improve my results and add someone features 🚀🚀🚀")
+st.sidebar.code("Email: kontakt@malarzdawid.pl")
+
+if model_select == "xgb_model":
+    model = XGB.Booster()
+    model.load_model(f"models/{model_select}")
+else:
+    model = pickle.load(open(f"models/{model_select}", "rb"))
+
+
 
 ####################
 # Page title
 ####################
 
-st.write("""
-    # Salary prediction app in IT
-    This app predicts the **salary** values of IT job offert.  
-""")
+st.write("# Salary prediction app in IT")
 
 ####################
 # Set form values
 ####################
 
-cities = df['city'].value_counts().index[:10]
-technologies = df['marker_icon'].value_counts().index
-workplace_type = df['workplace_type'].value_counts().index
-experience_level = df['experience_level'].value_counts().index
-contract_type = df['contract_type'].value_counts().index
-remote_interview = ['True', 'False']
-remote = ['True', 'False']
-company_size = ['very_small', 'small', 'medium', 'large']
+df = pd.read_csv("../data/production.csv")
 
-######################
-# Inputs
-######################
+cities = df["city"].value_counts().index
+technologies = df["marker_icon"].value_counts().index
+workplace_type = df["workplace_type"].value_counts().index
+experience_level = df["experience_level"].value_counts().index
+contract_type = df["contract_type"].value_counts().index
+remote_interview = [True, False]
+remote = [True, False]
+company_size = ["micro", "small", "medium", "large"]
+
+# ######################
+# # Inputs
+# ######################
 
 col1, col2 = st.beta_columns(2)
 
-city_input = col1.selectbox(
-    'City',
-    cities
-)
+city_input = col1.selectbox("City", cities)
 
-workplace_type_input = col1.selectbox(
-    'Workplace type',
-    workplace_type
-)
+workplace_type_input = col1.selectbox("Workplace type", workplace_type)
 
-experience_level_input = col1.selectbox(
-    'Experience level',
-    experience_level
-)
+experience_level_input = col1.selectbox("Experience level", experience_level)
 
-remote_interview_input = col2.radio(
-    'Remote Interview',
-    remote_interview
-)
+remote_interview_input = col2.radio("Remote Interview", remote_interview)
 
-remote_input = col2.radio(
-    'Remote',
-    remote
-)
+remote_input = col2.radio("Remote", remote)
 
-company_size_input = st.selectbox(
-    'Company size',
-    company_size,
-    help="""
-very_small (0-30)  
-small (30-100)  
-medium (100-1000)  
-large (1000-10000+)  
-"""
-)
+company_size_input = st.selectbox("Company size", company_size)
 
 
-technology_input = st.selectbox(
-    'Technology',
-    technologies
-)
+technology_input = st.selectbox("Technology", technologies)
 
-contract_type_input = st.radio(
-    'Contract Type:',
-    contract_type
-)
+contract_type_input = st.radio("Contract Type:", contract_type)
 
-######################
-# Pre-built model
-######################
+if st.button("Predict"):
+    columns = {
+        "city": city_input,
+        "country_code": "PL",
+        "marker_icon": technology_input,
+        "workplace_type": workplace_type_input,
+        "experience_level": experience_level_input,
+        "remote_interview": remote_interview_input,
+        "remote": remote_input,
+        "contract_type": contract_type_input,
+        "salary_mean": 0,
+        "company_size_bin": company_size_input,
+    }
+    df = df.append(columns, ignore_index=True)
 
-if st.button('Predict!'):
-    X = df.drop('salary_mean', axis=1)
-    user_inputs = [city_input, technology_input, workplace_type_input, experience_level_input, contract_type_input, company_size_input]
+    cols = ["workplace_type", "country_code", "contract_type", "company_size_bin"]
+    df[cols] = df[cols].apply(LabelEncoder().fit_transform)
 
-    user_inputs_df = pd.DataFrame([user_inputs], columns=X.columns)
-    X = X.append(user_inputs_df)
+    features_bool = df.select_dtypes(include="bool").columns
+    df = pd.get_dummies(df, columns=features_bool, drop_first=True)
 
-    # Feature engineering
-    X['city'] = X['city'].astype('category')
-    X['city'] = X['city'].cat.codes
-    X['marker_icon'] = X['marker_icon'].astype('category')
-    X['marker_icon'] = X['marker_icon'].cat.codes
-    # Get dummies
-    X = pd.get_dummies(X, columns=['workplace_type', 'experience_level', 'contract_type', 'company_size_bin'], prefix="feature")
+    features_object = df.select_dtypes(include="object").columns
+    df = pd.get_dummies(df, columns=features_object)
 
-    # Get user inputs
-    predict_value = X.tail(1)
-    X = X[:-1]
+    df = df.drop(["salary_mean"], axis=1)
+    predict = df.tail(1)
 
-    # Prediction
-    prediction = model.predict(predict_value)[0]
-    salary= create_salary_range(prediction)
-
-    # Print prediction salary range
-    st.success(f"Prediction salary: {salary['min']} - {salary['max']}")
+    if model_select == "xgb_model":
+        xgb_model = XGB.Booster()
+        xgb_model.load_model("models/xgb_model")
+        predict = XGB.DMatrix(predict)
+        predicted_value = xgb_model.predict(predict)
+    else:
+        predicted_value = model.predict(predict)
+    salary_range = create_salary_range(predicted_value, salary_range)
+    st.success(f"Salary: {salary_range['min']} - {salary_range['max']}")
