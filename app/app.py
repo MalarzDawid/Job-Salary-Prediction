@@ -4,25 +4,30 @@
 import os
 import pickle
 import pandas as pd
+import numpy as np
 import streamlit as st
 import xgboost as XGB
 from sklearn.preprocessing import LabelEncoder
 
+# Results
+results_mae = pd.read_csv("../data/training_results.csv")
+
+# Sidebar: selectbox
+model_select = st.sidebar.selectbox("Models", os.listdir("models/"))
+
 ####################
 # Custom functions
 ####################
-def create_salary_range(prediction, salary_range):
+def create_salary_range(prediction):
+    salary_range = results_mae.loc[results_mae["model"] == model_select, "mae"].values[0]
+    salary_range = round(int(salary_range), -2)
     prediction = round(int(prediction), -2)
     min_salary = prediction - salary_range
     max_salary = prediction + salary_range
     return {"min": min_salary, "max": max_salary}
 
-
-# Sidebar: selectbox
-model_select = st.sidebar.selectbox("Models", os.listdir("models/"))
-
 # Sidebar: slider
-salary_range = st.sidebar.slider("Select a range of salary", 0, 2000, (1000))
+# salary_range = st.sidebar.slider("Select a range of salary", 0, 2000, (1000))
 
 # Sidebar: text
 st.sidebar.write("## About Project: ")
@@ -37,8 +42,6 @@ if model_select == "xgb_model":
 else:
     model = pickle.load(open(f"models/{model_select}", "rb"))
 
-
-
 ####################
 # Page title
 ####################
@@ -51,7 +54,8 @@ st.write("# Salary prediction app in IT")
 
 df = pd.read_csv("../data/production.csv")
 
-cities = df["city"].value_counts().index
+cities = df["city"].unique()
+cities = np.sort(cities)
 technologies = df["marker_icon"].value_counts().index
 workplace_type = df["workplace_type"].value_counts().index
 experience_level = df["experience_level"].value_counts().index
@@ -74,10 +78,7 @@ experience_level_input = col1.selectbox("Experience level", experience_level)
 
 remote_interview_input = col2.radio("Remote Interview", remote_interview)
 
-remote_input = col2.radio("Remote", remote)
-
 company_size_input = st.selectbox("Company size", company_size)
-
 
 technology_input = st.selectbox("Technology", technologies)
 
@@ -91,7 +92,6 @@ if st.button("Predict"):
         "workplace_type": workplace_type_input,
         "experience_level": experience_level_input,
         "remote_interview": remote_interview_input,
-        "remote": remote_input,
         "contract_type": contract_type_input,
         "salary_mean": 0,
         "company_size_bin": company_size_input,
@@ -117,5 +117,5 @@ if st.button("Predict"):
         predicted_value = xgb_model.predict(predict)
     else:
         predicted_value = model.predict(predict)
-    salary_range = create_salary_range(predicted_value, salary_range)
+    salary_range = create_salary_range(predicted_value)
     st.success(f"Salary: {salary_range['min']} - {salary_range['max']}")
