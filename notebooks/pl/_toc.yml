@@ -1,0 +1,6 @@
+format: jb-book
+root: introduction
+chapters:
+- file: 01_prepare_data
+- file: 02_eda_pl
+- file: 03_machine_learning
